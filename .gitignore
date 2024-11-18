@@ -1,0 +1,13 @@
+# VS Code files for those working on multiple tools
+.vscode/*
+
+# Python Tools for Visual Studio (PTVS)
+__pycache__/
+*.pyc
+
+# Other ignores
+corpus/
+142_dataset/
+prova.ipynb
+logs/
+out/
