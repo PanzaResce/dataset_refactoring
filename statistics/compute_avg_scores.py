@@ -27,6 +27,8 @@ def main():
     score_dicts = {}
     MODELS = ['bert-base-uncased', 'roberta-base', 'microsoft/deberta-base', 'allenai/longformer-base-4096',
               'google/bigbird-roberta-base', 'nlpaueb/legal-bert-base-uncased', 'zlucia/custom-legalbert', 'roberta-large', 'prajjwal1/bert-mini']
+    
+    # MODELS = ['FacebookAI/roberta-large']
 
     for model in MODELS:
         score_dict = {'dev': {'micro': [], 'macro': []},

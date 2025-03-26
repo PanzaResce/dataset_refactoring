@@ -1,4 +1,5 @@
 from datasets import concatenate_datasets
+from utils.dataset_utils import *
 
 def docs_correctly_distributed_among_splits(dataset_dict, n_test_docs):
     # All the clauses of a document must be in the same split
@@ -44,3 +45,24 @@ def check_label_integrity(dataset_dict, multi_class):
 
     if loop_split(dataset_dict, "train") and loop_split(dataset_dict, "validation") and loop_split(dataset_dict, "test"):
         print(f"check_label_integrity OK (V)")
+
+def check_documents_are_142(doc_list_file):
+    doc_list = load_document_list(doc_list_file)
+    
+    if len(doc_list) != 142:
+        print(f"check_documents_are_142 FAILED (X): Number of documents mismatching: {len(doc_list)} instead of 142")
+        return False
+    else:
+        print(f"check_documents_are_142 OK (V): Documents are exactly {len(doc_list)}/142")
+        return True
+
+def check_tags_to_id_mappings_match(list_tags_file):
+    tags_to_id, id_to_tags = get_tags_id(list_tags_file)
+
+    for id in id_to_tags.keys():
+        rev_tags_to_id = {v:k for k,v in tags_to_id.items()}
+        if id_to_tags[id] != rev_tags_to_id[id]:
+            print(f"check_tags_to_id_mappings_match FAILED (X): Found mismatch between tags_to_id and id_to_tags ({id_to_tags[id]} != {rev_tags_to_id[id]})")
+            return False
+    print(f"check_tags_to_id_mappings_match OK (V): Matching tags_to_id and id_to_tags")
+    

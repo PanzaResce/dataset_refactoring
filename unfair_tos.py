@@ -269,7 +269,7 @@ def main():
         num_labels = 2
     else:
         label_list = DATASET_LABEL_TO_ID.values()
-        num_labels = len(LABEL_TO_ID)
+        num_labels = len(DATASET_LABEL_TO_ID)
 
 
     # Load pretrained model and tokenizer

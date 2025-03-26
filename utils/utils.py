@@ -1,16 +1,3 @@
-# payload = {
-#     "inputs":f"{prompt}",
-#     "parameters": {
-#         "return_full_text": False,
-#         "max_new_tokens": 150,
-#         "temperature": 1,
-#         "do_sample": True
-#     },
-#     "options": {
-#         "use_cache": False,
-#     },
-# }
-
 import requests, transformers, torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,9 +6,6 @@ from datasets import load_from_disk
 from sklearn.metrics import f1_score
 
 from utils.config import *
-
-TOKEN= "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"
-HEADERS = {"Authorization": f"Bearer {TOKEN}", 'Cache-Control': 'no-cache'}
 
 def extract_model_name(card):
     return card.split("/")[-1]
@@ -118,60 +102,6 @@ def evaluate_models(endpoints, ds_test, ds_val, base_prompt):
         }
 
     return models_score
-
-# def evaluate_model(model, sys_prompt, dataset):
-#     prompt_template = f"""
-#     <|system|>
-#     {sys_prompt}
-#     <|user|>
-#     {{}}
-#     <|assistant|>
-#     """
-
-#     resp_list = []
-#     for el, label in zip(dataset["text"], dataset["labels"]):
-#         prompt = prompt_template.format(el)
-#         payload = {
-#             "inputs":f"{prompt}",
-#             "parameters": {
-#                 "return_full_text": False,
-#                 "max_new_tokens": 300,
-#                 "do_sample": False
-#             },
-#             "options": {
-#                 "use_cache": False,
-#             },
-#         }
-
-#         resp_list.append((api_query(model, payload), label))
-#     return resp_list
-
-def api_query(endpoint, payload, debug=0):
-    """
-    Send a POST request to the specified API endpoint with the given payload.
-
-    Args:
-        endpoint (str): The URL of the API endpoint to send the request to.
-        payload (dict): The JSON payload to include in the POST request.
-
-    Returns:
-        dict: The JSON response from the API as a dictionary.
-
-    Raises:
-        SystemExit: If a request exception occurs, the function raises a SystemExit with the exception message.
-    """
-
-    if debug == 1:
-        print(f"Running query on model {extract_model_name(endpoint)}")
-    elif debug == 2:
-        print(f"Running query on model {extract_model_name(endpoint)}\n Payload = {payload}")
-
-
-    try:
-        response = requests.post(endpoint, headers=HEADERS, json=payload)
-    except requests.exceptions.RequestException as e: 
-        raise SystemExit(e)
-    return response.json()
 
 
 def show_confusion_matrix(confusion_matrix, id2label):

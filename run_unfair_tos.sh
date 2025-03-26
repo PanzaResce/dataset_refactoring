@@ -34,6 +34,7 @@ if [[ "$1" == "-all" ]]; then
     OUTPUT_DIR=logs/${TASK}_bin
   else
     OUTPUT_DIR=logs/${TASK}
+  fi
 
 
   for MODEL_NAME in "${MODELS[@]}"; do
@@ -76,7 +77,7 @@ else
     OUTPUT_DIR=logs/${TASK}_bin
   else
     OUTPUT_DIR=logs/${TASK}
-
+  fi
 
   for SEED in $(seq 1 ${NUM_SEEDS}); do
     echo "-------- Training model $MODEL_NAME with seed $SEED --------"

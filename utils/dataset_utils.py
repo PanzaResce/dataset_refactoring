@@ -5,6 +5,18 @@ import matplotlib.pyplot as plt
 from datasets import Dataset, DatasetDict
 from collections import defaultdict
 
+aggregation_mapping = {
+    "fair": ["not_clause", "a1", "ch1", "cr1", "j1", "law1", "ltd1", "ter1", "use1", "pinc1"],
+    "a": ["a2", "a3"],
+    "ch": ["ch2", "ch3"],
+    "cr": ["cr2", "cr3"],
+    "j": ["j2", "j3"],
+    "law": ["law2", "law3"],
+    "ltd": ["ltd2", "ltd3"],
+    "ter": ["ter2", "ter3"],
+    "use": ["use2", "use3"],
+    "pinc": ["pinc2", "pinc3"]    
+}
 
 def get_tags_id(list_tags_file):
     """
@@ -22,37 +34,87 @@ def get_tags_id(list_tags_file):
     
     return tags_to_id, id_to_tags
 
+def load_document_list(doc_list_file):
+    doc_list = []      
 
-def get_senteces_labels(doc_list_file, sentences_dir, labels_dir, tags_to_id):
-    """
-        Get all sentences and labels from the corpus
-    """
-
-    doc_sentences = {}  # key = document name, value = list of sentences
-    labels = {}         # key = document name, value = list of tags for each sentence
-    doc_list = []       # List of documents by file name
-
-    # Load document list
     with open(doc_list_file) as f:
         for line in f:
             doc_list.append(line.strip())
+    return doc_list
 
-    # For each document extract the sentences and the labels
-    for item in doc_list:
-        doc_sentences[item] = []
-        labels[item] = []
-        with open(os.path.join(sentences_dir, item)) as f:
-            for line in f:
-                line = re.sub('[0-9][0-9.,-]*', 'SPECIALNUMBER', line.strip().lower())
-                doc_sentences[item].append(line)
-        with open(os.path.join(labels_dir, item)) as f:
+def retrieve_labels_per_document(document_list, labels_dir, tags_to_id):
+    labels = {}         
+    for doc in document_list:
+        labels[doc] = []
+        with open(os.path.join(labels_dir, doc)) as f:
             for line in f:
                 tags = line.strip().split()
                 tags_ids = [tags_to_id[tag] for tag in tags]
                 if len(tags_ids) > 0:
-                    labels[item].append(tags_ids)
+                    labels[doc].append(tags_ids)
                 else:
-                    labels[item].append([0])
+                    labels[doc].append([0])
+    return labels
+
+def count_unfair_labels(all_labels, tags_to_id):
+    fair_ids = [tags_to_id[tag] for tag in aggregation_mapping["fair"]]
+    total = 0
+    for labels in all_labels:
+        total += sum([1 for l in labels if l not in fair_ids])
+    return total
+
+def count_unfair_clauses(all_labels, tags_to_id):
+    fair_ids = [tags_to_id[tag] for tag in aggregation_mapping["fair"]]
+    total = 0
+    for labels in all_labels:
+        num_fair = sum([1 for l in labels if l in fair_ids])
+        total+=bool(len(labels)-num_fair)
+    return total
+
+def retrieve_clauses_per_document(document_list, sentences_dir):
+    doc_sentences = {} 
+    for doc in document_list:
+        doc_sentences[doc] = []
+        with open(os.path.join(sentences_dir, doc)) as f:
+            for line in f:
+                line = re.sub('[0-9][0-9.,-]*', 'SPECIALNUMBER', line.strip().lower())
+                doc_sentences[doc].append(line)
+    return doc_sentences
+
+def is_label_fair(label, tags_to_id):
+    """ List of labels contains only fair tags """
+    fair_ids = [tags_to_id[tag] for tag in aggregation_mapping["fair"]]
+    for l in label:
+        if l not in fair_ids:
+            return False
+    return True
+
+
+def number_of_tags_per_clause(all_labels, tags_to_id, only_unfair=False):
+    counts = {count: 0 for count in range(1,5)}
+    for labels in all_labels:
+        if only_unfair:
+            if not is_label_fair(labels, tags_to_id):
+                counts[len(labels)] += 1
+        else:
+            counts[len(labels)] += 1
+
+    return counts 
+
+
+def get_sentences_labels(doc_list_file, sentences_dir, labels_dir, tags_to_id):
+    """
+        Get all sentences and labels from the corpus
+    """
+
+    # List of documents by file name
+    doc_list = load_document_list(doc_list_file)
+
+    # key = document name, value = list of sentences
+    doc_sentences = retrieve_clauses_per_document(doc_list, sentences_dir)
+    
+    # key = document name, value = list of tags for each sentence
+    labels = retrieve_labels_per_document(doc_list, labels_dir, tags_to_id) 
 
 
     doc_to_id = {}
@@ -64,10 +126,10 @@ def get_senteces_labels(doc_list_file, sentences_dir, labels_dir, tags_to_id):
     mask_train = []
 
     count_documents = 0
-    for item in doc_list:
-        for s in doc_sentences[item]:
-            doc_to_id[item] = count_documents
-            id_to_doc[count_documents] = item
+    for doc in doc_list:
+        for s in doc_sentences[doc]:
+            doc_to_id[doc] = count_documents
+            id_to_doc[count_documents] = doc
             all_sentences.append(s)
             documents_id.append(count_documents)
             # Do not train with sentences of len <= 5
@@ -75,7 +137,7 @@ def get_senteces_labels(doc_list_file, sentences_dir, labels_dir, tags_to_id):
                 mask_train.append(False)
             else:
                 mask_train.append(True)
-        for l in labels[item]:
+        for l in labels[doc]:
             all_labels.append(l)
         count_documents += 1
     
@@ -86,19 +148,6 @@ def get_full_dataset(sentences, labels, documents, aggregate_tags=False, id_to_t
         if id_to_tags == {}:
             print("Provide also id_to_tags if aggregate_tags is True")
             return
-
-        aggregation_mapping = {
-            "fair": ["not_clause", "a1", "ch1", "cr1", "j1", "law1", "ltd1", "ter1", "use1", "pinc1"],
-            "a": ["a2", "a3"],
-            "ch": ["ch2", "ch3"],
-            "cr": ["cr2", "cr3"],
-            "j": ["j2", "j3"],
-            "law": ["law2", "law3"],
-            "ltd": ["ltd2", "ltd3"],
-            "ter": ["ter2", "ter3"],
-            "use": ["use2", "use3"],
-            "pinc": ["pinc2", "pinc3"]    
-        }
 
         aggreg_label_to_id = {
             "fair": 0,
@@ -170,6 +219,10 @@ def train_val_test_split(dataset, seed=666):
     val_indices = [idx for doc in val_docs for idx in doc_groups[doc]]
     test_indices = [idx for doc in test_docs for idx in doc_groups[doc]]
 
+    print(f"#train docs: {len(train_docs)}")
+    print(f"#val docs: {len(val_docs)}")
+    print(f"#test docs: {len(test_docs)}")
+
     # Create the new splits
     train_dataset = dataset.select(train_indices)
     val_dataset = dataset.select(val_indices)
@@ -182,6 +235,36 @@ def train_val_test_split(dataset, seed=666):
     })
 
     return dataset_dict, train_indices, val_indices, test_indices
+
+def unfair_clauses_per_document(all_labels, all_documents, id2doc, ordered=True):
+    unfair_doc = {id2doc[doc]: 0 for doc in all_documents}
+    for lab, doc in zip(all_labels, all_documents):
+        if 0 not in lab:
+            unfair_doc[id2doc[doc]] += 1
+    if ordered:
+        return {k: v for k, v in sorted(unfair_doc.items(), key=lambda item: item[1], reverse=True)}
+    else:
+        return unfair_doc
+
+def unfair_document_per_categories(labels_per_doc, id_to_tags):
+    unfair_doc_freqs = {k:0 for k in aggregation_mapping.keys()}
+
+    def find_aggregated_tag(tag):
+        for k,v in aggregation_mapping.items():
+            if tag in v:
+                return k
+
+    for doc in labels_per_doc.keys():
+        already_counted = {k:False for k in aggregation_mapping.keys()}
+        labels_in_doc = labels_per_doc[doc]
+        for lbs in labels_in_doc:
+            for l in lbs:
+                tag = id_to_tags[l]
+                aggregated_tag = find_aggregated_tag(tag)
+                if not already_counted[aggregated_tag]:
+                    unfair_doc_freqs[aggregated_tag] += 1
+                    already_counted[aggregated_tag] = True
+    return unfair_doc_freqs
 
 def get_tags_frequencies(dataset, tags_to_id, split=None):
     tags_freq = {k:0 for k,v in tags_to_id.items()}
@@ -199,7 +282,7 @@ def get_tags_frequencies(dataset, tags_to_id, split=None):
                 tags_freq[id_to_tags[label]] += 1
         return {k: v for k, v in sorted(tags_freq.items(), key=lambda item: item[1], reverse=True)}
 
-def print_label_distribution(dataset, tags_to_id):
+def print_label_distribution(dataset, tags_to_id, exclude_fair):
     train_freqs = get_tags_frequencies(dataset, tags_to_id, "train")
     val_freqs = get_tags_frequencies(dataset, tags_to_id, "validation")
     test_freqs = get_tags_frequencies(dataset, tags_to_id, "test")
@@ -212,9 +295,10 @@ def print_label_distribution(dataset, tags_to_id):
     print(f"Test: {test_freqs}")
 
     # Filter "fair" into bar plots
-    train_freqs = {k:v for k,v in train_freqs.items() if k!="fair"}
-    val_freqs = {k:v for k,v in val_freqs.items() if k!="fair"}
-    test_freqs = {k:v for k,v in test_freqs.items() if k!="fair"}
+    if exclude_fair:
+        train_freqs = {k:v for k,v in train_freqs.items() if k!="fair"}
+        val_freqs = {k:v for k,v in val_freqs.items() if k!="fair"}
+        test_freqs = {k:v for k,v in test_freqs.items() if k!="fair"}
 
     axs[0].bar(*zip(*train_freqs.items()))
     axs[0].set_title("Train")
@@ -247,6 +331,14 @@ def print_label_ratio(dataset, tags_to_id):
     for k,v in test_freqs.items():
         print(f"{k}: {v} ({v*100/len(dataset["test"]):.2f})")
 
+def unfair_pie_chart(dataset, tags_to_id):
+    data_freqs = get_tags_frequencies(dataset, tags_to_id)
+    dataset_labels = [el for el in data_freqs.keys() if el !="fair"]
+
+    plt.figure(figsize=(13, 9))
+    data_val = [val for k, val in data_freqs.items() if k !="fair"]
+    plt.pie(data_val, labels=dataset_labels, autopct=lambda x: '{:.1f}%\n({:.0f})'.format(x, sum(data_val)*x/100))
+
 def compare_lexglue(dataset, lex_dataset, tags_to_id, lex_mapping, split):
     data_freqs = get_tags_frequencies(dataset, tags_to_id, split)
 
@@ -264,59 +356,6 @@ def compare_lexglue(dataset, lex_dataset, tags_to_id, lex_mapping, split):
     lex_val = [val for k, val in lex_freqs.items() if k !="fair" and  k !="pinc"]
     ax[1].pie(lex_val, labels=lex_labels, autopct=lambda x: '{:.1f}%\n({:.0f})'.format(x, sum(lex_val)*x/100))
     ax[1].set_title(f"Lex {split}")
-
-
-# def barplot_lexglue(dataset, lex_dataset, tags_to_id, lex_mapping):
-#     train_freqs = get_tags_frequencies(dataset, tags_to_id, "train")
-#     val_freqs = get_tags_frequencies(dataset, tags_to_id, "validation")
-#     test_freqs = get_tags_frequencies(dataset, tags_to_id, "test")
-
-#     lex_train_freqs = get_tags_frequencies(lex_dataset, lex_mapping, "train")
-#     lex_val_freqs = get_tags_frequencies(lex_dataset, lex_mapping, "validation")
-#     lex_test_freqs = get_tags_frequencies(lex_dataset, lex_mapping, "test")
-
-#     labels = list(train_freqs.keys())
-
-#     train_values = list(train_freqs.values())
-#     val_values = list(val_freqs.values())
-#     test_values = list(test_freqs.values())
-
-#     lex_train_values = list(lex_train_freqs.values())
-#     lex_val_values = list(lex_val_freqs.values())
-#     lex_test_values = list(lex_test_freqs.values())
-    
-#     x = np.arange(len(labels))
-#     width = 0.25  # Width of the bars
-
-#     # Creating the bar plot
-#     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(16, 8))
-
-#     ax[0].bar(x - width, train_values, width, label='Dataset train')
-#     ax[0].bar(x, lex_train_values, width, label='Lexglue train')
-#     ax[0].set_xticklabels(labels)
-#     ax[0].legend()
-
-#     ax[1].bar(x - width, val_values, width, label='Dataset validation')
-#     ax[1].bar(x, lex_val_values, width, label='Lexglue validation')
-#     ax[1].set_xticklabels(labels)
-#     ax[1].legend()
-
-#     ax[2].bar(x - width, test_values, width, label='Dataset test')
-#     ax[2].bar(x, lex_test_values, width, label='Lexglue test')
-#     ax[2].set_xticklabels(labels)
-#     ax[2].legend()
-
-#     # Labels and titles
-#     plt.xlabel('Labels')
-#     plt.ylabel('Count')
-#     plt.title('Label Distribution Across Dataset Splits')
-#     plt.legend()
-
-#     # Display the plot
-#     plt.tight_layout()
-#     plt.show()
-
-
 
 def compare_dataset_splits(dataset, tags_to_id):
     train_freqs = get_tags_frequencies(dataset, tags_to_id, "train")
